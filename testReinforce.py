@@ -104,13 +104,13 @@ if __name__ == "__main__":
 
     
     # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C1355.blif"), "C1355")
-    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C6288.blif", "C6288"))
-    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C5315.blif", "C5315"))
-    testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/dalu.blif", "dalu"))
-    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/k2.blif", "k2"))
-    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/mainpla.blif", "mainpla"))
-    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/apex1.blif", "apex1"))
-    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/bc0.blif", "bc0"))
+    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C6288.blif"), "C6288")
+    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C5315.blif"), "C5315")
+    testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/dalu.blif"), "dalu")
+    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/k2.blif"), "k2")
+    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/mainpla.blif"), "mainpla")
+    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/apex1.blif"), "apex1")
+    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/bc0.blif"), "bc0")
 
     #testReinforce("/home/rayksm/rlfinal/benchmarks/flowtune_BLIF/bflyabc.blif", "bfly_abc")
     #testReinforce("./bench/MCNC/Combinational/blif/prom1.blif", "prom1")
