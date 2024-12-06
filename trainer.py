@@ -1,121 +1,125 @@
-import random
+##
+# @file testReinforce.py
+# @author Keren Zhu
+# @date 10/31/2019
+# @brief The main for test REINFORCE
+#
+from datetime import datetime
+import os
+import torch
 
-class Trajectory(object):
-    """
-    @brief The experience of a trajectory
-    """
-    def __init__(self, states, rewards, actions, value):
-        self.states = states
-        self.rewards = rewards
-        self.actions = actions
-        self.value = value
+import trainer
+import net
+from env import EnvGraph as Env
+
+import numpy as np
+import statistics
+
+import wandb
+from wandb.integration.sb3 import WandbCallback
+
+BENCHMARK_ROOT = '/home/ray/RL/hdl-benchmarks-master/'
+
+class AbcReturn:
+    def __init__(self, returns):
+        self.numNodes = float(returns[0])
+        self.level = float(returns[1])
     def __lt__(self, other):
-        return self.value < other.value
+        if (int(self.level) == int(other.level)):
+            return self.numNodes < other.numNodes
+        else:
+            return self.level < other.level
+    def __eq__(self, other):
+        return int(self.level) == int(other.level) and int(self.numNodes) == int(self.numNodes)
 
-class RLTrainer(object):
-    def __init__(self, env, gamma, pi, baseline):
-        self._env = env
-        self._gamma = gamma
-        self._pi = pi
-        self._baseline = baseline
-        self.memTrajectory = [] # the memorized trajectories. sorted by value
-        self.memLength = 4
-        self.sumRewards = []
-        self.lenSeq = 0
-        self.count_update = 0
-        self.TRewards = 0
-        self.TNumAnd = 0
+def testReinforce(filename, ben):
+    #run = wandb.init(
+    # project="RLFinal_AIG_Reduction",
+    # sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+    # id = "v5_PPO_v3"
+    #)
 
-    def genTrajectory(self, phaseTrain=True):
-        self._env.reset()
-        state = self._env.state()
-        term = False
-        states, rewards, actions = [], [0], []
-        while not term:
-            action = self._pi(state[0], state[1], phaseTrain)
-            term = self._env.takeAction(action)
+    now = datetime.now()
+    dateTime = now.strftime("%m/%d/%Y, %H:%M:%S") + "\n"
+    print("Time ", dateTime)
 
-            nextState = self._env.state()
-            nextReward = self._env.reward()
+    env = Env(filename)
+    policy_network = net.PolicyNetwork(env.dimState(), env.numActions(), 1e-4, net.FcModelGraph)
+    #policy_network.load_state_dict(torch.load("xxx.pth"))
 
-            states.append(state)
-            rewards.append(nextReward)
-            actions.append(action)
+    value_network = net.ValueNetwork(env.dimState(), env.numActions(), 1e-4, net.FcModel)
+    #value_network.load_state_dict(torch.load("xxx.pth"))
 
-            state = nextState
+    rl_trainer = trainer.RLTrainer(env, 1, policy_network, value_network)
 
-            if len(states) > 20:
-                term = True
-
-        return Trajectory(states, rewards, actions, self._env.curStatsValue())
-    
-    def episode(self, gen_traj = 10, phaseTrain=True):
+    for idx in range(1000):
+        returns = rl_trainer.episode(phaseTrain=True)
+        seqLen = rl_trainer.lenSeq
+        line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
         
-        self.lenSeq = 0
-        self.updateTrajectory(gen_traj, phaseTrain)
-        self._pi.episode()
-        return self.TNumAnd / gen_traj, self.TRewards / gen_traj
-        #return [self._env._curstate]
+        #wandb.log(
+        #    {
+        #    "step": idx,
+        #    "NumAnd": returns[0],
+        #     "avg_score": returns[1]}
+        #)
+
+        print(line)
+        print("-----------------------------------------------")
+        print("Action (Policy Value) > ... > || Total Reward, Remain AndGate ||\n")
+    wandb.finish()
+
+    # for testing
+    #returns = reinforce.episode(phaseTrain=False)
+    #seqLen = reinforce.lenSeq
+    #line = "Iter " + str(idx + 1) + ", NumAnd "+ str(returns[0]) + ", Level "+ str(returns[1]) + ", Seq Length " + str(seqLen) + "\n"
+    print("Testing ")
+    print("-----------------------------------------------")
+    #lastfive.sort(key=lambda x : x.level)
+    #lastfive = sorted(lastfive)
+    returns = rl_trainer.episode(phaseTrain=False)
+    seqLen = rl_trainer.lenSeq
+    line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
+    print(line)
+    print("-----------------------------------------------")
+
+    # save model
+    # policy_network.save_model("model/vApprox2_dummynode.pth")
+    # value_network.save_model("model/vbaseline2_dummynode.pth")
+
+
+if __name__ == "__main__":
+    """
+    env = Env("./bench/i10.aig")
+    vbaseline = RF.BaselineVApprox(4, 3e-3, RF.FcModel)
+    for i in range(10000000):
+        with open('log', 'a', 0) as outLog:
+            line = "iter  "+ str(i) + "\n"
+            outLog.write(line)
+        vbaseline.update(np.array([2675.0 / 2675, 50.0 / 50, 2675. / 2675, 50.0 / 50]), 422.5518 / 2675)
+        vbaseline.update(np.array([2282. / 2675,   47. / 50, 2675. / 2675,   47. / 50]), 29.8503 / 2675)
+        vbaseline.update(np.array([2264. / 2675,   45. / 50, 2282. / 2675,   45. / 50]), 11.97 / 2675)
+        vbaseline.update(np.array([2255. / 2675,   44. / 50, 2264. / 2675,   44. / 50]), 3 / 2675)
+    """
+
     
-    def updateTrajectory(self, gen_traj, phaseTrain=True):
-        self.TRewards = 0
-        self.TNumAnd = 0
+    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C1355.blif"), "C1355")
+    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C6288.blif"), "C6288")
+    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C5315.blif"), "C5315")
+    testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/dalu.blif"), "dalu")
+    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/k2.blif"), "k2")
+    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/mainpla.blif"), "mainpla")
+    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/apex1.blif"), "apex1")
+    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/bc0.blif"), "bc0")
 
-        steplen = self._env.total_action_len
-        update_time = 0
-        for gg in range(gen_traj):
-            self._env.reset()
-            state = self._env.state()
-            term = 0
-            states, advantages, Gs, actions = [], [], [], []
-
-            thiseporeward = 0
-
-            while term < steplen:
-
-                action = self._pi(state[0], state[1], phaseTrain, 1)
-                term = self._env.takeAction(action)
-
-                nextState = self._env.state()
-                nextReward = self._env.reward()
-
-                if term < steplen:
-                    g = nextReward + self._gamma * self._baseline.value(nextState[0], nextState[1])
-                else:
-                    g = nextReward
-
-                baseline = self._baseline(state[0], state[1])
-                delta = g - baseline
-                
-                states.append(state)
-                actions.append(action)
-                advantages.append(delta)
-                Gs.append(g)
-
-                state = nextState
-
-                self.lenSeq += 1
-                self.count_update += 1
-
-                self.TRewards += nextReward
-                thiseporeward += nextReward
-                if term == steplen: self.TNumAnd += self._env.returns()[0]
-
-            print(f"|| TR = {thiseporeward:>6.3f}, RA = {int(self._env.curStatsValue()):4d}", end=" || \n")
-
-            if phaseTrain:
-
-                for i in range(steplen):
-                    state = states[i]
-                    action = actions[i]
-                    g = Gs[i]
-                    culmu_advantage = sum(advantages[k] for k in range(i, steplen))
-
-                    self._baseline.update(state[0], action, g, state[1])
-                    self._pi.update(state[0], state[1], action, 1, culmu_advantage)
-
-                update_time += 1
-                if update_time % 2 == 0:  # origin = 5
-                    self._baseline.update_old_policy()
-                if update_time % 2 == 0:  # origin = 5
-                    self._pi.update_old_policy()
+    #testReinforce("/home/rayksm/rlfinal/benchmarks/flowtune_BLIF/bflyabc.blif", "bfly_abc")
+    #testReinforce("./bench/MCNC/Combinational/blif/prom1.blif", "prom1")
+    #testReinforce("./bench/MCNC/Combinational/blif/mainpla.blif", "mainpla")
+    #testReinforce("./bench/MCNC/Combinational/blif/k2.blif", "k2")
+    #testReinforce("./bench/ISCAS/blif/c5315.blif", "c5315")
+    #testReinforce("./bench/ISCAS/blif/c6288.blif", "c6288")
+    #testReinforce("./bench/MCNC/Combinational/blif/apex1.blif", "apex1")
+    #testReinforce("./bench/MCNC/Combinational/blif/bc0.blif", "bc0")
+    #testReinforce("./bench/i10.aig", "i10")
+    #testReinforce("./bench/ISCAS/blif/c1355.blif", "c1355")
+    #testReinforce("./bench/ISCAS/blif/c7552.blif", "c7552")
