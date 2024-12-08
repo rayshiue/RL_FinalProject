@@ -33,7 +33,8 @@ class EnvGraph(object):
         self._rewardBaseline = totalReward / 20.0 # 18 is the length of compress2rs sequence
         self._andbasline = np.abs(resyn2Stats.numAnd - self.initStats.numAnd)
         self._levbaseline = np.abs(self.statValue_lev(resyn2Stats) - self.statValue_lev(self.initStats))
-        self.total_action_len = 10
+        self.total_action_len = 20
+        self.target = 100
         print("baseline num AND ", resyn2Stats.numAnd, "\nBasline And Redution = ", self._andbasline, ", Basline Level Redution = ", self._levbaseline )
 
     def resyn2(self):
@@ -160,71 +161,41 @@ class EnvGraph(object):
         return (combined_torch, graph)
     
     def reward(self):
-        #if self.lastAct == 5: #term
-        #    return -50
-        #combine = 0.8
-        combine = 1
         
-        #return combine * np.sign(self.statValue(self._lastStats) - self.statValue(self._curStats)) * np.sqrt(np.abs(self.statValue(self._lastStats) - self.statValue(self._curStats)) / self._andbasline) \
-        #    + (1 - combine) * np.sign(self.statValue_lev(self._lastStats) - self.statValue_lev(self._curStats)) * np.sqrt(np.abs(self.statValue_lev(self._lastStats) - self.statValue_lev(self._curStats)) / self._levbaseline)
-        #val = np.abs(self.statValue(self._lastStats) - self.statValue(self._curStats))
-        #lev = np.abs(self.statValue_lev(self._lastStats) - self.statValue_lev(self._curStats))
-        #print(self.statValue(self.initStats))
-        #print(self._andbasline)
         val = np.abs(self.statValue(self._lastStats) - self.statValue(self._curStats))
         val_sign = np.sign(int(self.statValue(self._lastStats)) - int(self.statValue(self._curStats)))
 
+        ## Penalty
+        ## ============================================
+        ## with penalty
         if self.lastAct == self.lastAct2:
             penalty = -0.3
         else:
             penalty = 0
+        ## ============================================
+        ## without penalty
+        # penalty = 0
+        ## ============================================
 
-        '''
-        if   self.statValue(self._curStats) < 1080 and self.lenSeq > 1:
-            advance = 5
-        elif   self.statValue(self._curStats) < 1100 and self.lenSeq > 1:
-            advance = 2
-        elif self.statValue(self._curStats) > 1110 and self.lenSeq > 4:
-            advance = -5
-        else:
-            advance = 0
-        '''
-
-        target = 1000
+        
+        ## Advance
+        ## ============================================
+        ## with advance
         candy = 10
-
         if self.lenSeq > self.total_action_len - 1:
-            if self.statValue(self._curStats) < target:
+            if self.statValue(self._curStats) < self.nowtarget:
                 advance = candy
+                self.nowtarget = self.statValue(self._curStats)
             else:
-                advance = candy - 3 * ((self.statValue(self._curStats) - target) // 20 + 1)
+                advance = candy - 1.5 * ((self.statValue(self._curStats) - self.nowtarget) // 10 + 1)
         else:
             advance = 0 
+        ## ============================================
+        ## without penalty
+        # advance = 0 
+        ## ============================================
 
-        """
-        if   self.statValue(self._curStats) < 1000 and self.lenSeq > 1:
-            advance = 5
-        elif   self.statValue(self._curStats) < 1020 and self.lenSeq > 1:
-            advance = 2
-        elif   self.statValue(self._curStats) > 1040 and self.lenSeq > 19:
-            advance = -2
-        elif self.statValue(self._curStats) > 1060 and self.lenSeq > 4:
-            advance = -5
-        else:
-            advance = 0
-        """
-
-        #lev = np.abs(self.statValue_lev(self.initStats) - self.statValue_lev(self._curStats))
-        #lev_sign = np.sign(int(self.statValue_lev(self._lastStats)) - int(self.statValue_lev(self._curStats)))
-        #if (self.lenSeq >= 5):
-        #    add = (val - self._andbasline)
-        #else:
-        #    add = 0
-
-        #return val_sign * np.sqrt(val / (self._andbasline / 20))
-        #print(val_sign * val / 300)
-        #return val_sign * np.sqrt(1 * val) / 10 - self.statValue(self._curStats) / 2000
-        #return val_sign * np.sqrt(1 * val) / 10
+        
 
         return (val_sign * val / 50 + penalty + advance)
             
