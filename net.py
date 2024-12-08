@@ -199,7 +199,7 @@ class PolicyNetwork(object):
         loss.backward(retain_graph=True)
 
         # torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=1.0)
-        torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=10.0)
+        # torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=10.0)
 
         self._optimizer.step()
 
