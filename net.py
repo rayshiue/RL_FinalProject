@@ -4,8 +4,6 @@ import torch.nn.functional as F
 import numpy as np
 from torch.distributions import Categorical
 import bisect
-from dgl.nn.pytorch import GraphConv
-import dgl
 import torch.nn.init as init
 
 torch.manual_seed(2024)
@@ -19,66 +17,55 @@ class FcModel(nn.Module):
         self._numFeats = numFeats
         self._outChs = outChs
 
-        self.fc1 = nn.Linear(numFeats, 32).to(device)
+        self.fc1 = nn.Linear(numFeats, 64).to(device)
         self.act1 = nn.ReLU()
-        
-        # self.gcn = GCN(7, 64, 8)
-        #self.gcn = GCN(6, 64, 16)
-        
 
-        # self.fc2 = nn.Linear(32 + 8, 32).to(device)
-        # self.act2 = nn.ReLU()
+        self.fc2 = nn.Linear(64, 64).to(device)
+        self.act2 = nn.ReLU()
 
-        self.fc3 = nn.Linear(32, 32).to(device)
+        self.fc3 = nn.Linear(64, 64).to(device)
         self.act3 = nn.ReLU()
 
-        self.fc4 = nn.Linear(32, 32).to(device)
+        self.fc4 = nn.Linear(64, 64).to(device)
         self.act4 = nn.ReLU()
 
-        self.fc5 = nn.Linear(32, 32).to(device)
+        self.fc5 = nn.Linear(64, 32).to(device)
         self.act5 = nn.ReLU()
 
         self.fc6 = nn.Linear(32, outChs).to(device)
 
-        # Custom initialization
         self._initialize_weights()
 
     def _initialize_weights(self):
-        # Initialize each layer
         for module in self.modules():
             if isinstance(module, nn.Linear):
                 if module.bias is not None:
                     init.constant_(module.bias, 0)
 
-            '''
-            elif isinstance(module, GCN):
-                # If GCN has parameters, initialize them here
-                for param in module.parameters():
-                    if param.dim() > 1:
-                        init.xavier_uniform_(param)
-            '''
-
     def forward(self, x, graph):
         x = x.to(device)
-        #graph_state = self.gcn(graph)
 
         x = self.fc1(x)
         x = self.act1(x)
-        # x_res = x
+        x_res = x
+
+        x = self.fc2(x)
+        x = self.act2(x)
+        x = x + x_res
 
         x = self.fc3(x)
         x = self.act3(x)
-        # x = x + x_res
+        x_res = x
 
         x = self.fc4(x)
         x = self.act4(x)
-        # x_res = x
+        x = x + x_res
 
         x = self.fc5(x)
         x = self.act5(x)
-        # x = x + x_res
         
         x = self.fc6(x)
+
         return x
     
 
@@ -88,67 +75,52 @@ class FcModelGraph(nn.Module):
         self._numFeats = numFeats
         self._outChs = outChs
         
-        self.fc1 = nn.Linear(numFeats, 32).to(device)
-        # self.gcn = GCN(7, 64, 16)
-        #self.gcn = GCN(6, 64, 16)
+        self.fc1 = nn.Linear(numFeats, 64).to(device)
         self.act1 = nn.ReLU()
 
-        # self.fc2 = nn.Linear(32 + 16, 32).to(device)
-        self.fc2 = nn.Linear(32, 32).to(device)
-
+        self.fc2 = nn.Linear(64, 64).to(device)
         self.act2 = nn.ReLU()
 
-        self.fc3 = nn.Linear(32, 32).to(device)
+        self.fc3 = nn.Linear(64, 64).to(device)
         self.act3 = nn.ReLU()
 
-        self.fc4 = nn.Linear(32, 32).to(device)
+        self.fc4 = nn.Linear(64, 64).to(device)
         self.act4 = nn.ReLU()
 
-        self.fc5 = nn.Linear(32, 32).to(device)
+        self.fc5 = nn.Linear(64, 32).to(device)
         self.act5 = nn.ReLU()
 
         self.fc6 = nn.Linear(32, outChs).to(device)
 
-        # Custom initialization
         self._initialize_weights()
 
     def _initialize_weights(self):
-        # Initialize each layer
         for module in self.modules():
             if isinstance(module, nn.Linear):
                 if module.bias is not None:
                     init.constant_(module.bias, 0)
-            
-            '''
-            elif isinstance(module, GCN):
-                # If GCN has parameters, initialize them here
-                for param in module.parameters():
-                    if param.dim() > 1:
-                        init.xavier_uniform_(param)
-            '''
+
     def forward(self, x, graph):
         x = x.to(device)
-        # graph_state = self.gcn(graph)
 
         x = self.fc1(x)
         x = self.act1(x)
+        x_res = x
 
-        # x = self.fc2(torch.cat((x, graph_state), dim = 0))
         x = self.fc2(x)
         x = self.act2(x)
-        # x_res = x
+        x = x + x_res
 
         x = self.fc3(x)
         x = self.act3(x)
-        # x = x + x_res
+        x_res = x
 
         x = self.fc4(x)
         x = self.act4(x)
-        # x_res = x
+        x = x + x_res
 
         x = self.fc5(x)
         x = self.act5(x)
-        # x = x + x_res
         
         x = self.fc6(x)
 
@@ -320,59 +292,3 @@ class ValueNetwork(object):
         torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm = gradient_cut)  # Adjust max_norm as needed
 
         self._optimizer.step()
-
-'''
-class GCN(torch.nn.Module):
-    def __init__(self, in_feats, hidden_size, out_len):
-        super(GCN, self).__init__()
-        self.conv1 = GraphConv(in_feats, hidden_size).to(device)
-        self.conv2 = GraphConv(hidden_size, hidden_size).to(device)
-        self.conv3 = GraphConv(hidden_size, hidden_size).to(device)
-        self.conv4 = GraphConv(hidden_size, hidden_size).to(device)
-        
-        self.conv5 = GraphConv(hidden_size, int(hidden_size / 2)).to(device)
-        self.conv6 = GraphConv(int(hidden_size / 2), int(hidden_size / 2)).to(device)
-
-        self.conv7 = GraphConv(int(hidden_size / 2), out_len).to(device)
-
-
-
-    def forward(self, g):
-        g = g.to(device)
-        g.ndata['feat'] = g.ndata['feat'].to(device)
-        g = dgl.add_self_loop(g)
-
-        h = self.conv1(g, g.ndata['feat'])
-        h = torch.relu(h)
-        h_res = h
-
-        h = self.conv2(g, h)
-        h = torch.relu(h)
-        h = h + h_res
-
-        h = self.conv3(g, h)
-        h = torch.relu(h)
-        h_res = h
-
-        h = self.conv4(g, h)
-        h = torch.relu(h)
-        h = h + h_res
-        
-        h = self.conv5(g, h)
-        h = torch.relu(h)
-        h_res = h
-
-        h = self.conv6(g, h)
-        h = torch.relu(h)
-        h = h + h_res
-
-        h = self.conv7(g, h)
-        h = torch.relu(h)
-        g.ndata['h'] = h
-        hg = dgl.mean_nodes(g, 'h')
-        
-        #hg = self.pool(g, h)
-        #hg = self.fc(hg)
-        
-        return torch.squeeze(hg)
-'''
