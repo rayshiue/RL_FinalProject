@@ -32,12 +32,16 @@ class AbcReturn:
     def __eq__(self, other):
         return int(self.level) == int(other.level) and int(self.numNodes) == int(self.numNodes)
 
-def testReinforce(filename, ben):
-    #run = wandb.init(
-    # project="RLFinal_AIG_Reduction",
-    # sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
-    # id = "v5_PPO_v3"
-    #)
+def testReinforce(filename, design_name):
+    wandb.init(
+        project="RLFinal_Ablation_Study",
+        # name="10step state_ablation v0",
+        # name= f"{design_name} Epsilon 0.2",
+        name= f"{design_name} Test",
+        # sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+        # id = "v5_PPO_v3"
+    )
+    
 
     now = datetime.now()
     dateTime = now.strftime("%m/%d/%Y, %H:%M:%S") + "\n"
@@ -59,18 +63,14 @@ def testReinforce(filename, ben):
         seqLen = rl_trainer.lenSeq
         line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
         
-        #wandb.log(
-        #    {
-        #    "step": idx,
-        #    "NumAnd": returns[0],
-        #     "avg_score": returns[1]}
-        #)
-
+        wandb.log({"Episode (x10)": idx,"NumAnd": returns[0],"avg_score": returns[1]})
         print(line)
         print("-----------------------------------------------")
         print("Action (Policy Value) > ... > || Total Reward, Remain AndGate ||\n")
-    wandb.finish()
-
+        if idx%50==0:
+            returns = rl_trainer.episode(phaseTrain=False)
+            wandb.log({"Episode (x10)": idx, "TestNumAnd": returns[0]})
+    
     # for testing
     #returns = reinforce.episode(phaseTrain=False)
     #seqLen = reinforce.lenSeq
@@ -82,6 +82,8 @@ def testReinforce(filename, ben):
     returns = rl_trainer.episode(phaseTrain=False)
     seqLen = rl_trainer.lenSeq
     line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
+    wandb.log({"Episode (x10)": idx, "TestNumAnd": returns[0]})
+    wandb.finish()
     print(line)
     print("-----------------------------------------------")
 
