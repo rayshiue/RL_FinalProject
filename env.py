@@ -156,7 +156,7 @@ class EnvGraph(object):
         #combined = np.expand_dims(combined, axis=0)
         #return stateArray.astype(np.float32)
         combined_torch =  torch.from_numpy(combined.astype(np.float32)).float()
-        graph = GE.extract_dgl_graph(self._abc, self.boundNumAnd)
+        graph = None #GE.extract_dgl_graph(self._abc, self.boundNumAnd)
         return (combined_torch, graph)
     
     def reward(self):
