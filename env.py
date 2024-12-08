@@ -88,7 +88,6 @@ class EnvGraph(object):
         self.lastAct2 = self.lastAct
         self.lastAct = actionIdx
 
-        #self.actsTaken[actionIdx] += 1
         self.lenSeq += 1
 
         if actionIdx == 0:
@@ -100,23 +99,11 @@ class EnvGraph(object):
         elif actionIdx == 3:
             self._abc.rewrite(l=False, z=True) #rw -z
         elif actionIdx == 4:
-            #self._abc.refactor(l=True, z=True) # rfz -l
             self._abc.refactor(l=False, z=True) #rf -z
         elif actionIdx == 5:
             self._abc.resub(k=6, l=False)
-            #self._abc.resub(k=6, l=True)
-            #self._abc.end()
-            #return True
-        #elif actionIdx == 6:
-        #    self._abc.refactor(l=False, z=True) #rs
         else:
             assert(False)
-        """
-        elif actionIdx == 3:
-            self._abc.rewrite(z=True) #rwz
-        elif actionIdx == 4:
-            self._abc.refactor(z=True) #rfz
-        """
 
         # update the statitics
         self._lastStats = self._curStats
@@ -129,33 +116,38 @@ class EnvGraph(object):
 
         return self.lenSeq
     def state(self):
-        """
-        @brief current state
-        """
-        #oneHotAct = np.zeros(self.numActions())
-        #np.put(oneHotAct, self.lastAct, 1)
-        
-        #lastOneHotActs  = np.zeros(self.numActions())
-        #lastOneHotActs[self.lastAct2] += 1/3
-        #lastOneHotActs[self.lastAct3] += 1/3
-        #lastOneHotActs[self.lastAct] += 1/3
 
+        ## Not Ordered 3 Acts
+        ## ==============================================================================================
+        # lastOneHotActs  = np.zeros(self.numActions())
+        # lastOneHotActs[self.lastAct2] += 1/3
+        # lastOneHotActs[self.lastAct3] += 1/3
+        # lastOneHotActs[self.lastAct] += 1/3
+        # lastOneHotAnds = np.array([self.lastand, self.lastand2, self.lastand3]) / self.initLev
+        ## ==============================================================================================
+
+        
+        ## Ordered 3 Acts
+        ## ==============================================================================================
+        # lastOneHotActs = np.array([self.lastAct, self.lastAct2, self.lastAct3])
+        # lastOneHotAnds = np.array([self.lastand, self.lastand2, self.lastand3]) / self.initLev
+        ## ==============================================================================================
+
+        
+        ## Ordered 4 Acts
+        ## ==============================================================================================
         lastOneHotActs = np.array([self.lastAct, self.lastAct2, self.lastAct3, self.lastAct4])
         lastOneHotAnds = np.array([self.lastand, self.lastand2, self.lastand3, self.lastand4]) / self.initLev
-
+        ## ==============================================================================================
         
         stateArray = np.array([self._curStats.numAnd, self._curStats.lev,
             self._lastStats.numAnd, self._lastStats.lev]) / self.initLev
         
-        #stepArray = np.array([float(self.lenSeq) / 20.0])
-        #stepArray = np.array([float(self.lenSeq)])
         stepArray = np.zeros(self.total_action_len + 1)
         stepArray[self.lenSeq] = 10.0
 
-        #combined = np.concatenate((stateArray, lastOneHotActs, stepArray), axis=-1)
         combined = np.concatenate((stateArray, lastOneHotActs, lastOneHotAnds, stepArray), axis=-1)
-        #combined = np.expand_dims(combined, axis=0)
-        #return stateArray.astype(np.float32)
+
         combined_torch =  torch.from_numpy(combined.astype(np.float32)).float()
         graph = None #GE.extract_dgl_graph(self._abc, self.boundNumAnd)
         return (combined_torch, graph)
@@ -165,22 +157,22 @@ class EnvGraph(object):
         val = np.abs(self.statValue(self._lastStats) - self.statValue(self._curStats))
         val_sign = np.sign(int(self.statValue(self._lastStats)) - int(self.statValue(self._curStats)))
 
-        ## Penalty
+
+        ## With Penalty
         ## ============================================
-        ## with penalty
         if self.lastAct == self.lastAct2:
             penalty = -0.3
         else:
             penalty = 0
+        ## Without Penalty
         ## ============================================
-        ## without penalty
         # penalty = 0
         ## ============================================
 
         
-        ## Advance
+        
+        ## With Advance
         ## ============================================
-        ## with advance
         candy = 10
         if self.lenSeq > self.total_action_len - 1:
             if self.statValue(self._curStats) < self.nowtarget:
@@ -190,8 +182,8 @@ class EnvGraph(object):
                 advance = candy - 1.5 * ((self.statValue(self._curStats) - self.nowtarget) // 10 + 1)
         else:
             advance = 0 
+        ## Without penalty
         ## ============================================
-        ## without penalty
         # advance = 0 
         ## ============================================
 
