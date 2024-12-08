@@ -50,7 +50,9 @@ def testReinforce(filename, ben):
     value_network = net.ValueNetwork(env.dimState(), env.numActions(), 1e-4, net.FcModel)
     #value_network.load_state_dict(torch.load("xxx.pth"))
 
-    rl_trainer = trainer.RLTrainer(env, 1, policy_network, value_network)
+    ## Accumulation Ablation !!
+    gamma = 1 # 0, 0.1, 0.5, 0.9
+    rl_trainer = trainer.RLTrainer(env, gamma, policy_network, value_network)
 
     for idx in range(1000):
         returns = rl_trainer.episode(phaseTrain=True)
