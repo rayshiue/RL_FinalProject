@@ -169,7 +169,7 @@ class PolicyNetwork(object):
     def update_old_policy(self):
         self._old_network.load_state_dict(self._network.state_dict())
 
-    def update(self, s, graph, a, gammaT, delta, vloss, epsilon = 0.4, beta = 0.1, vbeta = 0.01):
+    def update(self, s, graph, a, gammaT, delta, vloss, epsilon = 0.1, beta = 0.1, vbeta = 0.01):
         # PPO
         self._network.train()
 
