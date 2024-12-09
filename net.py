@@ -3,7 +3,6 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 from torch.distributions import Categorical
-import bisect
 import torch.nn.init as init
 
 torch.manual_seed(2024)
