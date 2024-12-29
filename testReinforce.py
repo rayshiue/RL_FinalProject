@@ -33,16 +33,16 @@ class AbcReturn:
         return int(self.level) == int(other.level) and int(self.numNodes) == int(self.numNodes)
 
 def testReinforce(filename, design_name):
-    wandb.init(
-        project="RLFinal_Ablation_Study",
-        # name="10step state_ablation v0",
-        # name= f"{design_name} Epsilon 0.2",
-        name= f"{design_name} Test",
-        # sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
-        # id = "v5_PPO_v3"
-    )
     
-
+    # wandb.init(
+    #     project="RLFinal_Ablation_Study_GCN",
+    #     # name="10step state_ablation v0",
+    #     # name= f"{design_name} Epsilon 0.2",
+    #     name= f"{design_name} without GCN",
+    #     # sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
+    #     # id = "v5_PPO_v3"
+    # )
+    
     now = datetime.now()
     dateTime = now.strftime("%m/%d/%Y, %H:%M:%S") + "\n"
     print("Time ", dateTime)
@@ -55,21 +55,25 @@ def testReinforce(filename, design_name):
     #value_network.load_state_dict(torch.load("xxx.pth"))
 
     ## Accumulation Ablation !!
-    gamma = 1 # 0, 0.1, 0.5, 0.9
-    rl_trainer = trainer.RLTrainer(env, gamma, policy_network, value_network)
+    gamma = 1 # 0.1, 0.3, 0.5, 0.7, 0.9, 1.0
+    GAE = 1
+    rl_trainer = trainer.RLTrainer(env, gamma, policy_network, value_network, GAE)
 
-    for idx in range(1000):
+    for idx in range(400):
+
         returns = rl_trainer.episode(phaseTrain=True)
+
         seqLen = rl_trainer.lenSeq
         line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
         
-        wandb.log({"Episode (x10)": idx,"NumAnd": returns[0],"avg_score": returns[1]})
+        # wandb.log({"Episode (x10)": idx,"NumAnd": returns[0],"avg_score": returns[1], "Best NumAnd": env.nowtarget})
         print(line)
         print("-----------------------------------------------")
         print("Action (Policy Value) > ... > || Total Reward, Remain AndGate ||\n")
         if idx%50==0:
             returns = rl_trainer.episode(phaseTrain=False)
-            wandb.log({"Episode (x10)": idx, "TestNumAnd": returns[0]})
+            
+            # wandb.log({"Episode (x10)": idx, "TestNumAnd": returns[0]})
     
     # for testing
     #returns = reinforce.episode(phaseTrain=False)
@@ -82,8 +86,8 @@ def testReinforce(filename, design_name):
     returns = rl_trainer.episode(phaseTrain=False)
     seqLen = rl_trainer.lenSeq
     line = "Iter " + str(idx) + ", NumAnd "+ str(returns[0]) + ", Seq Length " + str(seqLen) + "\n"
-    wandb.log({"Episode (x10)": idx, "TestNumAnd": returns[0]})
-    wandb.finish()
+    # wandb.log({"Episode (x10)": idx, "TestNumAnd": returns[0], "Best NumAnd": env.nowtarget})
+    # wandb.finish()
     print(line)
     print("-----------------------------------------------")
 
@@ -107,14 +111,15 @@ if __name__ == "__main__":
     """
 
     
-    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C1355.blif"), "C1355")
-    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C6288.blif"), "C6288")
-    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C5315.blif"), "C5315")
+
     testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/dalu.blif"), "dalu")
-    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/k2.blif"), "k2")
-    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/mainpla.blif"), "mainpla")
-    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/apex1.blif"), "apex1")
-    # testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/bc0.blif"), "bc0")
+    testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/k2.blif"), "k2")
+    testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/mainpla.blif"), "mainpla")
+    testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/apex1.blif"), "apex1")
+    testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/bc0.blif"), "bc0")
+    testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C1355.blif"), "C1355")
+    testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C6288.blif"), "C6288")
+    testReinforce(os.path.join(BENCHMARK_ROOT, "mcnc/Combinational/blif/C5315.blif"), "C5315")
 
     #testReinforce("/home/rayksm/rlfinal/benchmarks/flowtune_BLIF/bflyabc.blif", "bfly_abc")
     #testReinforce("./bench/MCNC/Combinational/blif/prom1.blif", "prom1")
