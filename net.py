@@ -3,12 +3,44 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 from torch.distributions import Categorical
+import bisect
 import torch.nn.init as init
+from dgl.nn.pytorch import GraphConv
+import dgl
 
 torch.manual_seed(2024)
 
 # Check if GPU is available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = torch.device('cpu')
+
+class GCN(torch.nn.Module):
+    def __init__(self, in_feats, hidden_size, out_len):
+        super(GCN, self).__init__()
+
+        self.conv1 = GraphConv(in_feats, hidden_size).to(device)
+        self.conv2 = GraphConv(hidden_size, hidden_size).to(device)
+        self.conv3 = GraphConv(hidden_size, hidden_size).to(device)
+        self.conv4 = GraphConv(hidden_size, out_len).to(device)
+        # self.ST_model = SetTransformer(dim_input=64, num_outputs=1, dim_output=64).to(device)
+
+    def forward(self, g):
+        g = g.to(device)
+        g.ndata['feat'] = g.ndata['feat'].to(device)
+        g = dgl.add_self_loop(g)
+        h = self.conv1(g, g.ndata['feat'])
+        h = torch.relu(h)
+        h = self.conv2(g, h)
+        h = torch.relu(h)
+        #h = self.conv3(g, h)
+        #h = torch.relu(h)
+        h = self.conv4(g, h)
+        g.ndata['h'] = h
+        
+        hg = dgl.mean_nodes(g, 'h')
+        # hg = self.ST_model(h.unsqueeze(0))
+        # print(hg.shape)
+        return torch.squeeze(hg)
 
 class FcModel(nn.Module):
     def __init__(self, numFeats, outChs):
@@ -77,7 +109,8 @@ class FcModelGraph(nn.Module):
         self.fc1 = nn.Linear(numFeats, 64).to(device)
         self.act1 = nn.ReLU()
 
-        self.fc2 = nn.Linear(64, 64).to(device)
+        self.fc2 = nn.Linear(64+4, 64).to(device)      #with GCN
+        # self.fc2 = nn.Linear(64, 64).to(device)      #without GCN
         self.act2 = nn.ReLU()
 
         self.fc3 = nn.Linear(64, 64).to(device)
@@ -91,6 +124,8 @@ class FcModelGraph(nn.Module):
 
         self.fc6 = nn.Linear(32, outChs).to(device)
 
+        self.gcn = GCN(7, 12, 4)    # D256
+        
         self._initialize_weights()
 
     def _initialize_weights(self):
@@ -101,12 +136,14 @@ class FcModelGraph(nn.Module):
 
     def forward(self, x, graph):
         x = x.to(device)
+        graph_state = self.gcn(graph)
 
         x = self.fc1(x)
         x = self.act1(x)
         x_res = x
 
-        x = self.fc2(x)
+        # x = self.fc2(x)                               #without GCN
+        x = self.fc2(torch.cat((x, graph_state), 0))    #with GCN
         x = self.act2(x)
         x = x + x_res
 
@@ -120,10 +157,10 @@ class FcModelGraph(nn.Module):
 
         x = self.fc5(x)
         x = self.act5(x)
-        
+
         x = self.fc6(x)
 
-        return x
+        return x, graph_state
 
 
 # Policy Network
@@ -144,7 +181,7 @@ class PolicyNetwork(object):
         self.exp_prob = torch.ones(numActs).to(device) * (self.explore / numActs)
 
     def load_model(self, path):
-        self._network.load_state_dict(torch.load(path))
+        self._old_network.load_state_dict(torch.load(path))
     
     def save_model(self, path):
         torch.save(self._network.state_dict(), path)
@@ -152,18 +189,18 @@ class PolicyNetwork(object):
     def __call__(self, s, graph, phaseTrain=True, ifprint = False):
         self._old_network.eval()
         s = s.to(device).float()
-        out = self._old_network(s, graph)
+        out, graph_state = self._old_network(s, graph)
         probs = F.softmax(out / self.tau, dim=-1) * (1 - self.explore) + self.exp_prob
 
         if phaseTrain:
             m = Categorical(probs)
             action = m.sample()
-            if ifprint: print(f"{action.data.item()} ({out[action.data.item()].data.item():>6.3f})", end=" > ")
+            # if ifprint: print(f"{action.data.item()} ({out[action.data.item()].data.item():>6.3f})", end=" > ")
             self.count_print += 1
         else:
             action = torch.argmax(out)
-            if ifprint: print(f"{action.data.item()}", end=" > ")
-        return action.data.item()
+            # if ifprint: print(f"{action.data.item()}", end=" > ")
+        return action.data.item(), graph_state
     
     def update_old_policy(self):
         self._old_network.load_state_dict(self._network.state_dict())
@@ -174,12 +211,12 @@ class PolicyNetwork(object):
 
         # now log_prob
         s = s.to(device).float()
-        logits = self._network(s, graph)
+        logits, graph_state = self._network(s, graph)
         log_prob = torch.log_softmax(logits / self.tau, dim=-1)[a]
 
         # old log_prob
         with torch.no_grad():
-            old_logits = self._old_network(s, graph)
+            old_logits, graph_state = self._old_network(s, graph)
             old_log_prob = torch.log_softmax(old_logits / self.tau, dim=-1)[a]
 
         #ratio
@@ -198,10 +235,11 @@ class PolicyNetwork(object):
         loss.backward(retain_graph=True)
 
         # torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=1.0)
-        # torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=10.0)
+        # torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm=100.0)
 
         self._optimizer.step()
 
+        return graph_state
     def episode(self):
         pass
 
@@ -217,48 +255,33 @@ class ValueNetwork(object):
         self.count_print = 0
         self.vloss = 0
     
+    # def load_model(self, path):
+    #     self._network.load_state_dict(torch.load(path))
+    
+    # def save_model(self, path):
+    #     torch.save(self._network.state_dict(), path)
+    
     def load_model(self, path):
-        self._network.load_state_dict(torch.load(path))
+        self._old_network.load_state_dict(torch.load(path))
     
     def save_model(self, path):
         torch.save(self._network.state_dict(), path)
-    
+
     def __call__(self, state, graph):
         self._old_network.eval()
         state = state.to(device).float()
         #return self.value(state, action, graph).data
         return self.value(state, graph).data
-    
-    """
-    def maxvalue(self, state, graph):
-        self._old_network.eval()
-        state = state.to(device).float()
-        
-        # Initialize vmax with the value of the first action
-        vmax = self.value(state, 0, graph).data
-        
-        for i in range(1, self._numActs):
-            v_current = self.value(state, i, graph).data
-            vmax = torch.max(vmax, v_current)
-        
-        return vmax
-    """
 
     def value(self, state, graph):
         self._old_network.eval()
         state = state.to(device).float()
-        #action_tensor = torch.tensor([action], dtype=state.dtype, device=state.device)
-        #action_features = torch.cat((state, action_tensor), dim=-1)  # Concatenate state and action
-        #out = self._old_network(action_features, graph)  # Pass both combined features and graph
         out = self._old_network(state, graph)
         return out
     
     def newvalue(self, state, graph):
         self._network.eval()
         state = state.to(device).float()
-        #action_tensor = torch.tensor([action], dtype=state.dtype, device=state.device)
-        #action_features = torch.cat((state, action_tensor), dim=-1)  # Concatenate state and action
-        #out = self._network(action_features, graph)  # Pass both combined features and graph
         out = self._network(state, graph)
         return out
     
@@ -268,7 +291,6 @@ class ValueNetwork(object):
     def update(self, state, action, G, graph):
         self._network.train()
         state = state.to(device).float()
-        #action = action.to(device).float().unsqueeze(0)
         vApprox = self.newvalue(state, graph)  # Estimate Q-value
         loss = (torch.tensor([G], device=device) - vApprox[-1]) ** 2 / 2
 
@@ -276,17 +298,10 @@ class ValueNetwork(object):
         self._optimizer.zero_grad()
         loss.backward()
     
-        #if self.count_print % 25 == 0:
-        #    total_norm = torch.nn.utils.clip_grad_norm_(self._network.parameters(), float('inf'))
-        #    print(f"Value Network Gradient norm before clipping: {total_norm}")
         self.count_print += 1
 
         # Apply gradient clipping
         gradient_cut = 1000.0
-        #total_norm = torch.nn.utils.clip_grad_norm_(self._network.parameters(), float('inf'))
-        #if total_norm > gradient_cut: 
-        #    print("Cut!", end=" ")
-        #print(f"Value Network Gradient norm before clipping: {total_norm}", end=" ")
 
         torch.nn.utils.clip_grad_norm_(self._network.parameters(), max_norm = gradient_cut)  # Adjust max_norm as needed
 
